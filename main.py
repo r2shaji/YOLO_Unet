@@ -23,7 +23,6 @@ def main():
     embed_layers = [1,2,3,4,5]
 
     feature_extractor = FeatureExtractor(config,embed_layers)
-    feature_extractor.get_features_from_yolo()
     if args.mode == "train":
         trainer = Trainer(config, feature_extractor,config["num_epochs"])
         trainer.train()

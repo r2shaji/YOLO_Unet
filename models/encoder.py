@@ -10,63 +10,37 @@ from dataset import xywhn_to_xyxy, load_label, transform_image
 
 
 class FeatureExtractor():
-    def __init__(self, config, embed_layers= [1,2,3,4,15]):
+    def __init__(self, config, embed_layers= [1,2,3,4,5]):
         self.model = YOLO(config["yolo_path"])
-        self.image_folder = config["image_folder"]
         self.label_folder = config["label_folder"]
         self.label_names = config["label_names"]
         self.embed_layers = embed_layers
-        self.image_features = {}
-        self.image_paths = sorted(
-                        glob.glob(os.path.join(config["image_folder"], "*.jpg")) 
+        self.sharp_image_paths = sorted(
+                        glob.glob(os.path.join(config["sharp_image_folder"], "*.jpg")) 
+                        )
+        self.sharp_image_folder = config["sharp_image_folder"]
+        self.blur_image_paths = sorted(
+                        glob.glob(os.path.join(config["blur_image_folder"], "*.jpg")) 
                         )
 
-    def get_features_from_yolo(self):
-
-        for image_path in self.image_paths:
-            results = self.model.predict(image_path, embed=self.embed_layers)
-            self.image_features[image_path] = results
-        return self.image_features
-
     def crop_features(self, feature_map, bbox):
+        _, _, H, W = feature_map.shape
 
-        _, _, height, width = feature_map.shape
+        xmin, ymin, xmax, ymax = xywhn_to_xyxy(bbox, H, W)
 
-        xmin_feat, ymin_feat, xmax_feat, ymax_feat = xywhn_to_xyxy(bbox, height, width)
+        cropped = feature_map[:, :, ymin:ymax, xmin:xmax]
+        ch, cw = cropped.shape[2], cropped.shape[3]
 
-        cropped_feature = feature_map[:, :, ymin_feat:ymax_feat, xmin_feat:xmax_feat]
-        _, _, cropped_feature_height, cropped_feature_width = cropped_feature.shape
-        cropped_feature_height, cropped_feature_width = int(cropped_feature_height), int(cropped_feature_width)
-
-        print("cropped_feature_height, cropped_feature_width",cropped_feature_height, cropped_feature_width)
-        if cropped_feature_width == 0 or cropped_feature_height == 0:
-            if cropped_feature_width == 0:
-                xmin_feat = xmin_feat-1 if xmin_feat>0 else 0
-                xmax_feat = xmax_feat+1 if xmax_feat<width else width
-            if cropped_feature_height == 0:
-                ymin_feat = ymin_feat-1 if ymin_feat>0 else 0
-                ymax_feat = ymax_feat+1 if ymax_feat<height else height
-
-            print("ymin_feat:ymax_feat, xmin_feat:xmax_feat",ymin_feat,ymax_feat, xmin_feat,xmax_feat)
-            cropped_feature = feature_map[:, :, ymin_feat:ymax_feat, xmin_feat:xmax_feat]
+        if cw == 0 or ch == 0:
+            if cw == 0:
+                xmin = max(xmin - 1, 0)
+                xmax = min(xmax + 1, W)
+            if ch == 0:
+                ymin = max(ymin - 1, 0)
+                ymax = min(ymax + 1, H)
+            cropped = feature_map[:, :, ymin:ymax, xmin:xmax]
         
-        return cropped_feature
-    
-    def extract_image_features_reconstruction(self):
-
-        X = []
-        y = []
-
-        for image_path in self.image_paths:
-            features = []
-            image = Image.open(image_path).convert('RGB')
-            to_tensor = transforms.ToTensor()
-            image = to_tensor(image).unsqueeze(0)
-            features.append(image)
-            features.extend(self.image_features[image_path])
-            X.append(features)
-            y.append(transform_image(image_path))
-        return X, y
+        return cropped
 
 
     def extract_image_features_classification(self):
@@ -74,13 +48,13 @@ class FeatureExtractor():
         all_features = []
         true_labels = []
 
-        for image_path in self.image_paths:
+        for image_path in self.sharp_image_paths:
             image_name = os.path.basename(image_path).split(".")[0]
             print("image name",image_name)
             ground_truth = load_label(image_path,self.label_folder)
             true_boxes = ground_truth["sorted_boxes_xywhn"]
 
-            results = self.image_features[image_path]
+            results = self.model.predict(image_path, embed=self.embed_layers)
             cropped_char_features = [[] for _ in range(len(true_boxes))]
 
             k=0
@@ -102,6 +76,9 @@ class FeatureExtractor():
                     print("label",label)
                     cropped_char_features[i].append(cropped_feats)
 
+                del diff_layer_feature
+                torch.cuda.empty_cache()
+
             # for i, bbox in enumerate(true_boxes):
             #     image = Image.open(image_path)
             #     to_tensor = transforms.ToTensor()
@@ -118,6 +95,6 @@ class FeatureExtractor():
                 print("cropped_feats",cropped_char_features[i].shape)
                 all_features.append(cropped_char_features[i])
                 true_labels.append(ground_truth["sorted_labels"][i].item())
-
+        
         return np.array(all_features), np.array(true_labels)
         

@@ -1,5 +1,6 @@
-{   "image_folder": "D:\\Users\\r2shaji\\Downloads\\char_low_noise\\images\\val",
-    "label_folder":"D:\\Users\\r2shaji\\Downloads\\char_low_noise\\labels\\val",
+{   "sharp_image_folder": "D:\\Users\\r2shaji\\Downloads\\char_low_noise\\images\\train_5000",
+    "blur_image_folder": "D:\\Users\\r2shaji\\Downloads\\char_low_noise\\images\\blur_5000",
+    "label_folder":"D:\\Users\\r2shaji\\Downloads\\char_low_noise\\labels\\train_5000",
     "yolo_path":"D:\\Users\\r2shaji\\Downloads\\best.pt",
     "model_type":"Reconstruction",
     "num_epochs":120,

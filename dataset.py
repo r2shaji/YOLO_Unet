@@ -65,12 +65,30 @@ def transform_image(image_path):
 
 
 class ReconstructionDataset(Dataset):
-    def __init__(self, X, y):
-        self.X = X
-        self.y = y
+    def __init__(self, blur_image_paths, sharp_image_folder, model, embed_layers, transform_image_func, to_tensor):
+
+        self.blur_image_paths = blur_image_paths
+        self.sharp_image_folder = sharp_image_folder
+        self.model = model
+        self.embed_layers = embed_layers
+        self.transform_image_func = transform_image_func
+        self.to_tensor = to_tensor
 
     def __len__(self):
-        return len(self.X)
+        return len(self.blur_image_paths)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        blur_path = self.blur_image_paths[idx]
+        image = Image.open(blur_path).convert('RGB')
+        image_tensor = self.to_tensor(image).unsqueeze(0)
+
+        results = self.model.predict(blur_path, embed=self.embed_layers)
+        features = [image_tensor] + results
+
+        # Build the corresponding sharp image path using the same filename
+        filename = os.path.basename(blur_path)
+        sharp_path = os.path.join(self.sharp_image_folder, filename)
+
+        target = self.transform_image_func(sharp_path)
+
+        return features, target

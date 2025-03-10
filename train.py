@@ -3,8 +3,9 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from models.classifier import ClassifierNet
+from torchvision import transforms
 from torch.utils.data import DataLoader
-from dataset import create_data_loader, ReconstructionDataset
+from dataset import create_data_loader, ReconstructionDataset, transform_image
 from visualizer import plot_training_loss
 from models.decoder import YOLO_UNet
 import util
@@ -54,9 +55,16 @@ class Trainer:
 
     def train_reconstruction(self):
 
-        X, y = self.feature_extractor.extract_image_features_reconstruction()
-        dataset = ReconstructionDataset(X, y)
-        train_loader = DataLoader(dataset, batch_size=1, collate_fn=util.custom_collate_fn)
+        to_tensor = transforms.ToTensor()
+        dataset = ReconstructionDataset(
+            blur_image_paths=self.feature_extractor.blur_image_paths,
+            sharp_image_folder = self.feature_extractor.sharp_image_folder,
+            model=self.feature_extractor.model,
+            embed_layers=self.feature_extractor.embed_layers,
+            transform_image_func=transform_image,
+            to_tensor=to_tensor
+        )
+        train_loader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=util.custom_collate_fn)
 
         x_0, _ = next(iter(train_loader))[0]
         print("len(x_0)",x_0)
