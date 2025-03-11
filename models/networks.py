@@ -3,6 +3,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
+import torchvision.transforms as transforms
 
 
 class DoubleConv(nn.Module):
@@ -103,3 +105,51 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+    
+class PerceptualLoss(nn.Module):
+    def __init__(self):
+        super(PerceptualLoss, self).__init__()
+
+        self.device = torch.device("cpu")  
+        
+        with torch.no_grad():
+            self.vgg_relu_3_3 = self.contentFunc(15).to(self.device)
+            self.vgg_relu_2_2 = self.contentFunc(8).to(self.device)
+            self.transform = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    def contentFunc(self, relu_layer):
+        cnn = models.vgg19(pretrained=True).features
+        model = nn.Sequential()
+
+        cnn = cnn.to(self.device)
+        model = model.to(self.device)
+        model.eval()
+
+        for i, layer in enumerate(list(cnn)):
+            model.add_module(str(i), layer)
+            if i == relu_layer:
+                break
+
+        return model
+
+    def get_loss(self, fakeIm, realIm):
+
+        fakeIm = self.transform(fakeIm)
+        realIm = self.transform(realIm)
+
+        f_fake_2_2 = self.vgg_relu_2_2(fakeIm)
+        f_real_2_2 = self.vgg_relu_2_2(realIm)
+
+        f_fake_3_3 = self.vgg_relu_3_3(fakeIm)
+        f_real_3_3 = self.vgg_relu_3_3(realIm)
+
+        f_real_2_2_no_grad = f_real_2_2.detach()
+        f_real_3_3_no_grad = f_real_3_3.detach()
+
+        mse = nn.MSELoss()
+        loss = mse(f_fake_2_2, f_real_2_2_no_grad) + mse(f_fake_3_3, f_real_3_3_no_grad)
+
+        return loss / 2.0
+
+    def __call__(self, fakeIm, realIm):
+        return self.get_loss(fakeIm, realIm)

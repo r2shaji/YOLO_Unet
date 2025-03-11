@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from dataset import create_data_loader, ReconstructionDataset, transform_image
 from visualizer import plot_training_loss
 from models.decoder import YOLO_UNet
+from models.networks import PerceptualLoss
 import util
 
 
@@ -73,6 +74,7 @@ class Trainer:
         input_dim = x5_0_C 
         reconstruction_model = YOLO_UNet(input_dim)
         criterion = torch.nn.L1Loss()
+        perceptualLoss = PerceptualLoss()
         optimizer = optim.Adam(reconstruction_model.parameters(), lr=0.001)
 
         train_losses = []
@@ -84,7 +86,7 @@ class Trainer:
                 for batch_X, batch_y in batch:
                     optimizer.zero_grad()
                     outputs = reconstruction_model(batch_X)
-                    loss = criterion(outputs, batch_y)
+                    loss = criterion(outputs, batch_y) + perceptualLoss(outputs, batch_y)
                     loss.backward()
                     optimizer.step()
                     running_loss += loss.item()
