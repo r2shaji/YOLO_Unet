@@ -1,15 +1,12 @@
-import os
 import torch
+import numpy as np
 import torch.optim as optim
 import torch.nn as nn
-from models.classifier import ClassifierNet
-from torchvision import transforms
-from torch.utils.data import DataLoader
-from dataset import create_data_loader, ReconstructionDataset, transform_image
-from visualizer import plot_training_loss
-from models.decoder import YOLO_UNet
+from reconstruction import ReconstructionTrainer
+from classifier import ClassifierTrainer
+from dataset import load_label
 from models.networks import PerceptualLoss
-import util
+import visualizer, util
 
 
 class Trainer:
@@ -21,83 +18,70 @@ class Trainer:
 
     def train_classifier(self):
         
-        X, y = self.feature_extractor.extract_image_features_classification()
-        train_loader = create_data_loader(X, y)
-
-        _, channels = X.shape
-        input_dim = channels      
-        hidden_dim = 256     
-        num_classes = len(self.label_names)
-
-        classifier_model = ClassifierNet(input_dim, hidden_dim, num_classes)
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(classifier_model.parameters(), lr=0.001)
-
-        train_losses = []
-        for epoch in range(self.num_epochs):
-            classifier_model.train()
-            running_loss = 0.0
-            
-            for batch_X, batch_y in train_loader:
-                optimizer.zero_grad()
-                outputs = classifier_model(batch_X)
-                loss = criterion(outputs, batch_y)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item() * batch_X.size(0)
-            
-            epoch_loss = running_loss / len(train_loader.dataset)
-            train_losses.append(epoch_loss)
-            print(f"Classifier Epoch [{epoch+1}/{self.num_epochs}], Loss: {epoch_loss:.4f}")
-
-        plot_training_loss(train_losses, "Classifier")
-        torch.save(classifier_model.state_dict(), "results/classifier_model.pth")
-        print("Classifier model saved as 'classifier_model.pth'")
+        class_trainer = ClassifierTrainer(self.config, self.feature_extractor,self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
+        class_trainer.train()
+        class_trainer.plot_loss()
+        class_trainer.save_model()
 
     def train_reconstruction(self):
 
-        to_tensor = transforms.ToTensor()
-        dataset = ReconstructionDataset(
-            blur_image_paths=self.feature_extractor.blur_image_paths,
-            sharp_image_folder = self.feature_extractor.sharp_image_folder,
-            model=self.feature_extractor.model,
-            embed_layers=self.feature_extractor.embed_layers,
-            transform_image_func=transform_image,
-            to_tensor=to_tensor
-        )
-        train_loader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=util.custom_collate_fn)
+        recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
+        recon_trainer.train()
+        recon_trainer.plot_loss()
+        recon_trainer.save_model()
 
-        x_0, _ = next(iter(train_loader))[0]
-        print("len(x_0)",x_0)
-        x5_0 = x_0[5][0]
-        x5_0_C, _,_ = x5_0.shape
-        input_dim = x5_0_C 
-        reconstruction_model = YOLO_UNet(input_dim)
-        criterion = torch.nn.L1Loss()
-        perceptualLoss = PerceptualLoss()
-        optimizer = optim.Adam(reconstruction_model.parameters(), lr=0.001)
+    def train_both(self):
+
+        recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
+        train_loader = recon_trainer.data_loader
+        reconstruction_model = recon_trainer.load_model()
+
+        class_trainer = ClassifierTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
+        classifier_model = class_trainer.load_model()
+
+        rec_criterion = nn.MSELoss()
+        rec_perceptualLoss = PerceptualLoss()
+        class_criterion = nn.CrossEntropyLoss()
+
+        
+        optimizer = optim.Adam(list(reconstruction_model.parameters()) + list(classifier_model.parameters()), lr=0.001)
 
         train_losses = []
         for epoch in range(self.num_epochs):
             reconstruction_model.train()
+            classifier_model.train()
             running_loss = 0.0
-            
             for batch in train_loader:
-                for batch_X, batch_y in batch:
+                for features, real_im, sharp_path in batch:
                     optimizer.zero_grad()
-                    outputs = reconstruction_model(batch_X)
-                    loss = criterion(outputs, batch_y) + perceptualLoss(outputs, batch_y)
-                    loss.backward()
+
+                    rec_output = reconstruction_model(features) 
+                    rec_loss = rec_criterion(rec_output, real_im) + rec_perceptualLoss(rec_output, real_im)
+
+                    gt = load_label(sharp_path, self.config["label_folder"])
+
+                    cropped_char_features, true_labels = self.feature_extractor.extract_image_features(rec_output, gt)
+
+                    cropped_char_features = torch.stack(cropped_char_features)
+                    true_labels = torch.tensor(true_labels)
+
+                    class_outputs = classifier_model(cropped_char_features)
+                    class_loss = class_criterion(class_outputs, true_labels)
+
+                    total_loss = rec_loss + class_loss
+                    total_loss.backward()
                     optimizer.step()
-                    running_loss += loss.item()
-            
+                    running_loss += total_loss.item()
+
             epoch_loss = running_loss / len(train_loader.dataset)
             train_losses.append(epoch_loss)
-            print(f"Reconstruction Epoch [{epoch+1}/{self.num_epochs}], Loss: {epoch_loss:.4f}")
+            print(f"Reconstruction + Classification Epoch [{epoch+1}/{self.num_epochs}], Loss: {epoch_loss:.4f}")
+        
+        recon_trainer.save_model()
+        class_trainer.save_model()
 
-        plot_training_loss(train_losses, "Reconstruction")
-        torch.save(reconstruction_model.state_dict(), "results/reconstruction_model.pth")
-        print("Reconstruction model saved as 'reconstruction_model.pth'")
+        visualizer.plot_training_loss(train_losses, "Reconstruction + Classification", self.config["results_folder"])
+
 
     def train(self):
         model_type = self.config.get("model_type")
@@ -106,7 +90,7 @@ class Trainer:
         elif model_type == "Reconstruction":
             self.train_reconstruction()
         elif model_type == "Both":
-            self.train_classifier()
-            self.train_reconstruction()
+            self.train_both()
+
         else:
             print("Enter the correct model_type. The options are 'Classification', 'Reconstruction' and 'Both'")

@@ -40,11 +40,7 @@ def load_label(image_path,label_folder):
     ground_truth = { "sorted_labels": sorted_labels, "sorted_boxes_xywhn":sorted_boxes}
     return ground_truth
 
-
-
 def create_data_loader(X, y, batch_size=32):
-    print("shape of X",X.shape)
-    print("shape of y",y.shape)
     
     X_tensor = torch.tensor(X, dtype=torch.float32)
     y_tensor = torch.tensor(y, dtype=torch.long)
@@ -91,4 +87,4 @@ class ReconstructionDataset(Dataset):
 
         target = self.transform_image_func(sharp_path)
 
-        return features, target
+        return features, target, sharp_path

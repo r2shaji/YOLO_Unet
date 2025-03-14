@@ -94,7 +94,7 @@ def plot_confusion_matrix(all_labels, all_preds):
     plt.savefig('results/test_confusion_matrix_feature_crop.png')
 
 
-def plot_training_loss(train_losses,model_type):
+def plot_training_loss(train_losses,model_type, results_folder="results"):
 
     plt.figure(figsize=(8, 6))
     plt.plot(train_losses, label="Training Loss")
@@ -103,4 +103,4 @@ def plot_training_loss(train_losses,model_type):
     plt.ylabel(f"{model_type} Training Loss")
     plt.legend()
 
-    plt.savefig(f'results/training_Loss_{model_type}.png')
+    plt.savefig(f'{results_folder}/training_Loss_{model_type}.png')

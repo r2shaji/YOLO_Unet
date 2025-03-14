@@ -1,6 +1,7 @@
 import numpy as np
 import torch, os
 from PIL import Image
+from torchvision import transforms
 
 def tensor2im(input_image, imtype=np.uint8):
 
@@ -28,10 +29,16 @@ def save_image(image_numpy, image_path, aspect_ratio=1.0):
         image_pil = image_pil.resize((int(h / aspect_ratio), w), Image.BICUBIC)
     image_pil.save(image_path)
 
-def save_to_image(image, type, count):
+def save_test_image(image, type, count, save_path= "results"):
     image_numpy = tensor2im(image)
-    img_path = os.path.join("results/plots", f'test_{count}_{type}_.png')
+    img_path = os.path.join(save_path + "/plots", f'test_{count}_{type}_.png')
     save_image(image_numpy, img_path)
 
 def custom_collate_fn(batch):
     return batch
+
+def get_image_tensor(image_path):
+    image = Image.open(image_path).convert("RGB")
+    to_tensor = transforms.ToTensor()
+    image = to_tensor(image).unsqueeze(0)
+    return image
