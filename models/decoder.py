@@ -23,6 +23,9 @@ class YOLO_UNet(nn.Module):
         self.up6 = Up(in_channels=128, skip_channels=3, out_channels=64, scale_factor=4, bilinear=bilinear)
         self.outc = OutConv(64, n_channels_out)
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.to(self.device)
+
     def forward(self, yolo_feats):
         x0 = yolo_feats[0].clone()  # [B,   3, 512, 512]
         x1 = yolo_feats[1].clone()  # [B,  96, 128, 128]

@@ -24,22 +24,22 @@ class Tester:
         
         recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, num_epochs=120, batch_size=4)
         recon_trainer.test()
-        print("Reconstructed images saved in 'results/plots' folder.")
+        print(f"Reconstructed images saved in '{self.config["results_folder"]+"/fake"}' folder.")
 
     def test_both(self):
         recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, num_epochs=120, batch_size=4)
         recon_trainer.test()
 
         self.feature_extractor.sharp_image_paths = sorted(
-                        glob.glob(os.path.join("results/plots", "*.jpg")) 
+                        glob.glob(os.path.join(self.config["results_folder"]+"/fake", "*.jpg")) 
                         )
-        
+
         class_trainer = ClassifierTrainer(self.config, self.feature_extractor, num_epochs=120, batch_size=4)
         all_labels, all_preds = class_trainer.test()
         mapped_labels = list(map(lambda x: self.label_names.get(x), all_labels))
         mapped_preds = list(map(lambda x: self.label_names.get(x), all_preds))
 
-        plot_confusion_matrix(mapped_labels, mapped_preds)
+        plot_confusion_matrix(mapped_labels, mapped_preds,self.config["results_folder"])
         print("Confusion matrix plotted.")
 
 
@@ -50,7 +50,6 @@ class Tester:
         elif model_type == "Reconstruction":
             self.test_reconstruction()
         elif model_type == "Both":
-            self.test_classifier()
-            self.test_reconstruction()
+            self.test_both()
         else:
             print("Enter the correct model_type. The options are 'Classification', 'Reconstruction' and 'Both'")

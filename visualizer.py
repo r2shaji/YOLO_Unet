@@ -71,7 +71,7 @@ def feature_visualization(x, bbox, stage, n=4, save_dir=Path("feature_plots_1_6_
             plt.close()
 
 
-def plot_confusion_matrix(all_labels, all_preds):
+def plot_confusion_matrix(all_labels, all_preds, results_folder):
 
     class_labels = sorted(set(all_labels) | set(all_preds))
     
@@ -91,7 +91,7 @@ def plot_confusion_matrix(all_labels, all_preds):
     
     plt.title("Confusion Matrix")
 
-    plt.savefig('results/test_confusion_matrix_feature_crop.png')
+    plt.savefig(f'{results_folder}/test_confusion_matrix_feature_crop.png')
 
 
 def plot_training_loss(train_losses,model_type, results_folder="results"):
