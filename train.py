@@ -15,72 +15,109 @@ class Trainer:
         self.feature_extractor = feature_extractor
         self.num_epochs = num_epochs
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.class_trainer = ClassifierTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
+        self.recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
+
+        self.rec_criterion = nn.MSELoss().to(self.device)
+        self.rec_perceptualLoss = PerceptualLoss().to(self.device)
+        self.class_criterion = nn.CrossEntropyLoss().to(self.device)
+        
+
+    def _compute_loss(self, features, real_im, sharp_path, reconstruction_model, classifier_model):
+        features = [f.to(self.device) for f in features]
+        real_im = real_im.to(self.device)
+        rec_output = reconstruction_model(features)
+        rec_loss = self.rec_criterion(rec_output, real_im) + self.rec_perceptualLoss(rec_output, real_im)
+        gt = load_label(sharp_path, self.config["label_folder"])
+        cropped_char_features, true_labels = self.feature_extractor.extract_image_features(rec_output, gt)
+        cropped_char_features = torch.stack(cropped_char_features).to(self.device)
+        true_labels = torch.tensor(true_labels).to(self.device)
+        class_outputs = classifier_model(cropped_char_features)
+        class_loss = self.class_criterion(class_outputs, true_labels)
+        total_loss = rec_loss + class_loss
+        return total_loss
+
     def train_classifier(self):
 
-        class_trainer = ClassifierTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
-        class_trainer.train()
-        class_trainer.plot_loss()
-        class_trainer.save_model()
+        self.class_trainer.train()
+        self.class_trainer.plot_loss()
+        self.class_trainer.save_model()
 
     def train_reconstruction(self):
 
-        recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
-        recon_trainer.train()
-        recon_trainer.plot_loss()
-        recon_trainer.save_model()
+        self.recon_trainer.train()
+        self.recon_trainer.plot_loss()
+        self.recon_trainer.save_model()
 
     def train_both(self):
         
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
-        train_loader = recon_trainer.data_loader
-        reconstruction_model = recon_trainer.load_model().to(device)
-
-        class_trainer = ClassifierTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
-        classifier_model = class_trainer.load_model().to(device)
-
-        rec_criterion = nn.MSELoss().to(device)
-        rec_perceptualLoss = PerceptualLoss().to(device)
-        class_criterion = nn.CrossEntropyLoss().to(device)
+        train_loader = self.recon_trainer.train_loader
+        val_loader = self.recon_trainer.val_loader
+        
+        reconstruction_model = self.recon_trainer.load_model().to(self.device)
+        classifier_model = self.class_trainer.load_model().to(self.device)
 
         optimizer = optim.Adam(list(reconstruction_model.parameters()) + list(classifier_model.parameters()), lr=0.001)
-
+        
         train_losses = []
+        val_losses = []
+        best_val_loss = float('inf')
+        best_recon_state = None
+        best_classifier_state = None
+        
+        #Training
         for epoch in range(self.num_epochs):
             reconstruction_model.train()
             classifier_model.train()
             running_loss = 0.0
-
             for batch in train_loader:
                 for features, real_im, sharp_path in batch:
-                    optimizer.zero_grad()
-                    features = [f.to(device) for f in features]
-                    real_im = real_im.to(device)
-
-                    rec_output = reconstruction_model(features)
-                    rec_loss = rec_criterion(rec_output, real_im) + rec_perceptualLoss(rec_output, real_im)
-
-                    gt = load_label(sharp_path, self.config["label_folder"])
-                    cropped_char_features, true_labels = self.feature_extractor.extract_image_features(rec_output, gt)
-                    cropped_char_features = torch.stack(cropped_char_features).to(device)
-                    true_labels = torch.tensor(true_labels).to(device)
-                    class_outputs = classifier_model(cropped_char_features)
-                    class_loss = class_criterion(class_outputs, true_labels)
-
-                    total_loss = rec_loss + class_loss
+                    
+                    total_loss = self._compute_loss(features, real_im, sharp_path, reconstruction_model, classifier_model)
                     total_loss.backward()
                     optimizer.step()
                     running_loss += total_loss.item()
-
             epoch_loss = running_loss / len(train_loader.dataset)
             train_losses.append(epoch_loss)
-            print(f"Reconstruction + Classification Epoch [{epoch+1}/{self.num_epochs}], Loss: {epoch_loss:.4f}")
+            print(f"Reconstruction + Classification Epoch [{epoch+1}/{self.num_epochs}], Training Loss: {epoch_loss:.4f}")
+            
+            # Validation
+            reconstruction_model.eval()
+            classifier_model.eval()
+            val_running_loss = 0.0
+            with torch.no_grad():
+                for batch in val_loader:
+                    for features, real_im, sharp_path in batch:
+                        total_loss = self._compute_loss(features, real_im, sharp_path, reconstruction_model, classifier_model)
+                        val_running_loss += total_loss.item()
+            val_loss = val_running_loss / len(val_loader.dataset)
+            val_losses.append(val_loss)
+            print(f"Reconstruction + Classification Epoch [{epoch+1}/{self.num_epochs}], Validation Loss: {val_loss:.4f}")
+            
+            
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_recon_state = reconstruction_model.state_dict()
+                best_classifier_state = classifier_model.state_dict()
 
-        recon_trainer.save_model()
-        class_trainer.save_model()
+        # Save the best models
+        if not best_classifier_state:
+            self.recon_trainer.save_model()
+            self.class_trainer.save_model()
+            print("Validation loss didn't decrease. Saving the final model")
+        else:
+            reconstruction_model.load_state_dict(best_recon_state)
+            classifier_model.load_state_dict(best_classifier_state)
+            self.recon_trainer.save_model()
+            self.class_trainer.save_model()
+            print(f"Models saved with validation loss: {best_val_loss:.4f}")
+        
+        visualizer.plot_loss(train_losses, "Reconstruction + Classification", "Training", self.config["results_folder"])
+        visualizer.plot_loss(val_losses, "Reconstruction + Classification", "Validation", self.config["results_folder"])
 
-        visualizer.plot_training_loss(train_losses, "Reconstruction + Classification", self.config["results_folder"])
 
     def train(self):
 

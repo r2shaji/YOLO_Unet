@@ -69,11 +69,8 @@ class FeatureExtractor():
     def extract_image_features(self, image, ground_truth):
 
         _, _, H, W = image.shape
-        print("img shape befor",image.shape)
         if H % 32 != 0 or W % 32 != 0:
             image = self.pad_to_size(image)
-
-        print("image.shape",image.shape)
 
         true_boxes = ground_truth["sorted_boxes_xywhn"]
         results = self.model.predict(image, embed=self.embed_layers)
@@ -88,13 +85,13 @@ class FeatureExtractor():
                 # plot_image_name = f'feature_crops_1_6_15_21/{image_name}_{i}_{label}.png'
                 cropped_feats = self.crop_features(diff_layer_feature, bbox)
                 # plot_and_save_cropped_feature_map(cropped_feats, plot_image_name)
-                print("cropped_feats before pooling shape", cropped_feats.shape)
+                # print("cropped_feats before pooling shape", cropped_feats.shape)
                 cropped_feats = nn.functional.adaptive_avg_pool2d(cropped_feats, (1, 1)).squeeze(-1).squeeze(-1)
-                print("cropped_feats after pooling shape", cropped_feats.shape)
+                # print("cropped_feats after pooling shape", cropped_feats.shape)
 
                 if torch.isnan(cropped_feats).any():
                     print("Tensor has NaN values.", cropped_feats)
-                print("label", label)
+                # print("label", label)
                 cropped_char_features[i].append(cropped_feats)
 
             del diff_layer_feature
@@ -103,7 +100,7 @@ class FeatureExtractor():
         true_labels = []
         for i, char_embeddings in enumerate(cropped_char_features):
             cropped_char_features[i] = torch.unbind(torch.cat(char_embeddings, 1), dim=0)[0].squeeze(0)
-            print("cropped_feats", cropped_char_features[i].shape)
+            # print("cropped_feats", cropped_char_features[i].shape)
             true_labels.append(ground_truth["sorted_labels"][i].item())
 
         return cropped_char_features, true_labels

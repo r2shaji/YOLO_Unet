@@ -94,13 +94,13 @@ def plot_confusion_matrix(all_labels, all_preds, results_folder):
     plt.savefig(f'{results_folder}/test_confusion_matrix_feature_crop.png')
 
 
-def plot_training_loss(train_losses,model_type, results_folder="results"):
+def plot_loss(losses,model_type, loss_type, results_folder="results"):
 
     plt.figure(figsize=(8, 6))
-    plt.plot(train_losses, label="Training Loss")
-    plt.title(f"Epoch vs {model_type}Training Loss")
+    plt.plot(losses, label=f"{loss_type} Loss")
+    plt.title(f"Epoch vs {model_type}{loss_type} Loss")
     plt.xlabel("Epoch")
-    plt.ylabel(f"{model_type} Training Loss")
+    plt.ylabel(f"{model_type} {loss_type} Loss")
     plt.legend()
 
-    plt.savefig(f'{results_folder}/training_Loss_{model_type}.png')
+    plt.savefig(f'{results_folder}/{loss_type}_Loss_{model_type}.png')
