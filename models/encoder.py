@@ -3,6 +3,7 @@ import torch.nn as nn
 from ultralytics import YOLO
 import torch
 import glob
+import math
 import numpy as np
 from PIL import Image
 import os
@@ -42,8 +43,37 @@ class FeatureExtractor():
             cropped = feature_map[:, :, ymin:ymax, xmin:xmax]
 
         return cropped
+    
+    def pad_to_size(self, img, required_size=(256, 256)):
+
+        if img.dim() != 4:
+            raise ValueError("Expected img tensor of shape (B, C, H, W)")
+    
+        _, _, H, W = img.shape
+        desired_width, desired_height = required_size
+
+        pad_right = pad_bottom = 0
+        final_width = max(desired_width, math.ceil(W / 32) * 32)
+        final_height = max(desired_height, math.ceil(H / 32) * 32)
+
+        pad_left = (final_width - W) // 2
+        pad_right = final_width - W - pad_left
+
+        pad_top = (final_height - H) // 2
+        pad_bottom = final_height - H - pad_top
+
+        padding = (pad_left, pad_right, pad_top, pad_bottom)
+        padded_img = torch.nn.functional.pad(img, padding, mode='constant', value=0)
+        return padded_img
 
     def extract_image_features(self, image, ground_truth):
+
+        _, _, H, W = image.shape
+        print("img shape befor",image.shape)
+        if H % 32 != 0 or W % 32 != 0:
+            image = self.pad_to_size(image)
+
+        print("image.shape",image.shape)
 
         true_boxes = ground_truth["sorted_boxes_xywhn"]
         results = self.model.predict(image, embed=self.embed_layers)
