@@ -32,6 +32,16 @@ class ReconstructionTrainer:
         self.reconstruction_model.to(self.device)
         self.optimizer = optim.Adam(self.reconstruction_model.parameters(), lr=0.001)
 
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer,
+            mode='min',
+            factor=0.1,
+            patience=5,
+            verbose=True
+        )
+
+        self.early_stop_patience = 8
+
     def create_data_loader(self):
         to_tensor = transforms.ToTensor()
         dataset = ReconstructionDataset(
@@ -88,9 +98,18 @@ class ReconstructionTrainer:
             self.val_losses.append(val_loss)
             print(f"Reconstruction Epoch [{epoch+1}/{self.num_epochs}], Validation Loss: {val_loss:.4f}")
 
+            self.scheduler.step(val_loss)
+
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
                 self.best_model_state = self.reconstruction_model.state_dict()
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
+            
+            if no_improvement_count >= self.early_stop_patience:
+                print(f"Early stopping at epoch {epoch+1}. Best val loss: {self.best_val_loss:.4f}")
+                break
 
         if self.best_model_state:
             self.reconstruction_model.load_state_dict(self.best_model_state)

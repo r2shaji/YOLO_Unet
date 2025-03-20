@@ -34,6 +34,16 @@ class ClassifierTrainer:
         self.criterion = nn.CrossEntropyLoss().to(self.device)
         self.optimizer = optim.Adam(self.classifier_model.parameters(), lr=0.001)
 
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer,
+            mode='min',
+            factor=0.1,
+            patience=5,
+            verbose=True
+        )
+
+        self.early_stop_patience = 8
+
     def create_train_loader(self):
         X, y = self.feature_extractor.extract_image_features_classification()
         dataset = TensorDataset(X, y)
@@ -45,6 +55,7 @@ class ClassifierTrainer:
         return train_loader, val_loader, X, y
 
     def train(self):
+        no_improvement_count = 0
         for epoch in range(self.num_epochs):
             self.classifier_model.train()
             running_loss = 0.0
@@ -75,9 +86,18 @@ class ClassifierTrainer:
             self.val_losses.append(val_loss)
             print(f"Classifier Epoch [{epoch+1}/{self.num_epochs}], Validation Loss: {val_loss:.4f}")
 
+            self.scheduler.step(val_loss)
+
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
                 self.best_model_state = self.classifier_model.state_dict()
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
+
+            if no_improvement_count >= self.early_stop_patience:
+                print(f"Early stopping at epoch {epoch+1}. Best val loss: {self.best_val_loss:.4f}")
+                break
         
         if self.best_model_state:
             self.classifier_model.load_state_dict(self.best_model_state)

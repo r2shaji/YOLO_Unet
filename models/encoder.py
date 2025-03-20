@@ -13,7 +13,11 @@ import util
 class FeatureExtractor():
 
     def __init__(self, config, embed_layers=[1,2,3,4,5]):
+
         self.model = YOLO(config["yolo_path"])
+        for param in self.model.parameters():
+            param.requires_grad = False
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
         self.label_folder = config["label_folder"]
@@ -73,7 +77,8 @@ class FeatureExtractor():
             image = self.pad_to_size(image)
 
         true_boxes = ground_truth["sorted_boxes_xywhn"]
-        results = self.model.predict(image, embed=self.embed_layers)
+        with torch.no_grad():
+            results = self.model.predict(image, embed=self.embed_layers)
         cropped_char_features = [[] for _ in range(len(true_boxes))]
         k = 0
 

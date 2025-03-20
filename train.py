@@ -23,6 +23,8 @@ class Trainer:
         self.rec_criterion = nn.MSELoss().to(self.device)
         self.rec_perceptualLoss = PerceptualLoss().to(self.device)
         self.class_criterion = nn.CrossEntropyLoss().to(self.device)
+
+        self.early_stop_patience = 8
         
 
     def _compute_loss(self, features, real_im, sharp_path, reconstruction_model, classifier_model):
@@ -61,12 +63,21 @@ class Trainer:
         classifier_model = self.class_trainer.load_model().to(self.device)
 
         optimizer = optim.Adam(list(reconstruction_model.parameters()) + list(classifier_model.parameters()), lr=0.001)
+
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=0.1,
+            patience=5,
+            verbose=True
+        )
         
         train_losses = []
         val_losses = []
         best_val_loss = float('inf')
         best_recon_state = None
         best_classifier_state = None
+        no_improvement_count  = 0
         
         #Training
         for epoch in range(self.num_epochs):
@@ -96,12 +107,20 @@ class Trainer:
             val_loss = val_running_loss / len(val_loader.dataset)
             val_losses.append(val_loss)
             print(f"Reconstruction + Classification Epoch [{epoch+1}/{self.num_epochs}], Validation Loss: {val_loss:.4f}")
-            
-            
+
+            scheduler.step(val_loss)
+                
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_recon_state = reconstruction_model.state_dict()
                 best_classifier_state = classifier_model.state_dict()
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
+            
+            if no_improvement_count >= self.early_stop_patience:
+                print(f"Early stopping at epoch {epoch+1}. Best val loss: {self.best_val_loss:.4f}")
+                break
 
         # Save the best models
         if not best_classifier_state:
