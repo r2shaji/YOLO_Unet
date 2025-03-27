@@ -20,7 +20,8 @@ class Trainer:
         self.class_trainer = ClassifierTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
         self.recon_trainer = ReconstructionTrainer(self.config, self.feature_extractor, self.config["results_folder"], num_epochs=self.num_epochs, batch_size=4)
 
-        self.rec_criterion = nn.MSELoss().to(self.device)
+        self.rec_criterion_L2 = nn.MSELoss().to(self.device)
+        self.rec_criterion_L1 = nn.L1Loss().to(self.device)
         self.rec_perceptualLoss = PerceptualLoss().to(self.device)
         self.class_criterion = nn.CrossEntropyLoss().to(self.device)
 
@@ -31,7 +32,7 @@ class Trainer:
         features = [f.to(self.device) for f in features]
         real_im = real_im.to(self.device)
         rec_output = reconstruction_model(features)
-        rec_loss = self.rec_criterion(rec_output, real_im) + self.rec_perceptualLoss(rec_output, real_im)
+        rec_loss = 10 * self.rec_criterion_L2(rec_output, real_im) + 0.1 * self.rec_perceptualLoss(rec_output, real_im) + 20 * self.rec_criterion_L1(rec_output, real_im)
         gt = load_label(sharp_path, self.config["label_folder"])
         cropped_char_features, true_labels = self.feature_extractor.extract_image_features(rec_output, gt)
         cropped_char_features = torch.stack(cropped_char_features).to(self.device)

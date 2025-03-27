@@ -24,45 +24,66 @@ class DoubleConv(nn.Module):
 
 class Up(nn.Module):
 
-    def __init__(self, in_channels, skip_channels, out_channels, scale_factor=2, bilinear=False):
-        super(Up, self).__init__()
+    def __init__(self, in_channels, skip_channels, out_channels, scale_factor=2):
+        super().__init__()
         self.scale_factor = scale_factor
+
         if scale_factor > 1:
-            if bilinear:
-                self.up = nn.Upsample(scale_factor=scale_factor, mode='bilinear', align_corners=True)
-                up_channels = in_channels
-            else:
-                self.up = nn.ConvTranspose2d(in_channels, skip_channels, kernel_size=scale_factor, stride=scale_factor)
-                up_channels = skip_channels
+            conv_out_channels = skip_channels * (scale_factor ** 2)
+            self.up = nn.Sequential(
+                nn.Conv2d(in_channels, conv_out_channels, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(conv_out_channels),
+                nn.ReLU(inplace=True),            
+                nn.PixelShuffle(scale_factor)
+            )
+            conv_in_channels = skip_channels + skip_channels
         else:
             self.up = nn.Sequential(
-                nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(in_channels),
-                nn.ReLU(inplace=True)
+                 nn.Conv2d(in_channels, skip_channels, kernel_size=3, padding=1, bias=False),
+                 nn.BatchNorm2d(skip_channels),
+                 nn.ReLU(inplace=True)
             )
-            up_channels = in_channels
+            conv_in_channels = skip_channels + skip_channels
 
-        self.conv = DoubleConv(up_channels + skip_channels, out_channels)
+        self.conv = DoubleConv(conv_in_channels, out_channels)
 
     def forward(self, x1, x2):
+        x1 = self.up(x1) 
 
-        x1 = self.up(x1)
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
+
+        if diffX > 0 or diffY > 0:
+            x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                            diffY // 2, diffY - diffY // 2])
+        if x1.size()[2] > x2.size()[2] or x1.size()[3] > x2.size()[3]:
+             x1 = x1[:, :, :x2.size()[2], :x2.size()[3]]
+
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
-    
+
+
 class UpNoSkip(nn.Module):
 
-    def __init__(self, in_channels, out_channels, scale_factor=2, bilinear=False):
-        super(UpNoSkip, self).__init__()
+    def __init__(self, in_channels, out_channels, scale_factor=2):
+        super().__init__()
         self.scale_factor = scale_factor
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=scale_factor, mode='bilinear', align_corners=True)
-        else:
-            self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=scale_factor, stride=scale_factor)
+
+        if scale_factor > 1:
+            conv_out_channels = out_channels * (scale_factor ** 2)
+            self.up = nn.Sequential(
+                nn.Conv2d(in_channels, conv_out_channels, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(conv_out_channels),
+                nn.ReLU(inplace=True),            
+                nn.PixelShuffle(scale_factor)
+            )
+        else: 
+            self.up = nn.Sequential(
+                 nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
+                 nn.BatchNorm2d(out_channels),
+                 nn.ReLU(inplace=True)
+             )
+
         self.conv = DoubleConv(out_channels, out_channels)
 
     def forward(self, x):
@@ -76,7 +97,7 @@ class OutConv(nn.Module):
         super(OutConv, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=1),
-            nn.ReLU(inplace=True)
+            nn.Sigmoid()
         )
 
     def forward(self, x):

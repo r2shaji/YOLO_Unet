@@ -15,12 +15,12 @@ class YOLO_UNet(nn.Module):
         self.n_channels_out = n_channels_out
         self.bilinear = bilinear
 
-        self.up1 = UpNoSkip(in_channels=384, out_channels=256, scale_factor=2, bilinear=bilinear)
-        self.up2 = Up(in_channels=256, skip_channels=192, out_channels=256, scale_factor=1, bilinear=bilinear)
-        self.up3 = Up(in_channels=256, skip_channels=192, out_channels=256, scale_factor=1, bilinear=bilinear)
-        self.up4 = Up(in_channels=256, skip_channels=96, out_channels=128, scale_factor=2, bilinear=bilinear)
-        self.up5 = Up(in_channels=128, skip_channels=96, out_channels=128, scale_factor=1, bilinear=bilinear)
-        self.up6 = Up(in_channels=128, skip_channels=3, out_channels=64, scale_factor=4, bilinear=bilinear)
+        self.up1 = UpNoSkip(in_channels=384, out_channels=256, scale_factor=2)
+        self.up2 = Up(in_channels=256, skip_channels=192, out_channels=256, scale_factor=1)
+        self.up3 = Up(in_channels=256, skip_channels=192, out_channels=256, scale_factor=1)
+        self.up4 = Up(in_channels=256, skip_channels=96, out_channels=128, scale_factor=2)
+        self.up5 = Up(in_channels=128, skip_channels=96, out_channels=128, scale_factor=1)
+        self.up6 = Up(in_channels=128, skip_channels=3, out_channels=64, scale_factor=4)
         self.outc = OutConv(64, n_channels_out)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -7,6 +7,8 @@ from torch.utils.data import Dataset
 from PIL import Image
 from torchvision import transforms
 
+import util
+
 def xywhn_to_xyxy(detection, height, width):
 
     cx, cy, w, h = detection
@@ -51,8 +53,9 @@ def transform_image(image_path):
 
     image = Image.open(image_path).convert("RGB")
     image = np.array(image)
-    normalize = albu.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    image = normalize(image=image)["image"]
+    # normalize = albu.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+    # image = normalize(image=image)["image"]
+
     image = transforms.ToTensor()(image).unsqueeze(0)
     return image
 
@@ -73,12 +76,14 @@ class ReconstructionDataset(Dataset):
     def __getitem__(self, idx):
 
         blur_path = self.blur_image_paths[idx]
-        image = Image.open(blur_path).convert('RGB')
-        image_tensor = self.to_tensor(image).unsqueeze(0)
-        results = self.model.predict(blur_path, embed=self.embed_layers)
-        features = [image_tensor] + results
+        blur_image_tensor = self.transform_image_func(blur_path)
+        # _, _, H, W = blur_image_tensor.shape
+        # if H % 32 != 0 or W % 32 != 0:
+        #     blur_image_tensor = util.pad_to_size(blur_image_tensor)
         filename = os.path.basename(blur_path)
         sharp_path = os.path.join(self.sharp_image_folder, filename)
-        target = self.transform_image_func(sharp_path)
+        image_tensor = self.transform_image_func(sharp_path)
+        results = self.model.predict(blur_path, embed=self.embed_layers)
+        features = [blur_image_tensor] + results
 
-        return features, target, sharp_path
+        return features, image_tensor, sharp_path
