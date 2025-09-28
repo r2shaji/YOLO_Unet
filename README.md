@@ -16,7 +16,9 @@ Inputs the sharp image and label folders to train the classification model. Also
 
 #### For both training
 
-Inputs the sharp image, blur image and label folders to train the classification model. Also takes in the YOLO model to extract the layer embeddings. Outputs the trained model, training and validation plots. Also update the weights of the YOLO model trained in this multi task setup.
+Train in a multi task learning setup here.
+
+Inputs the sharp image, blur image and label folders to train the classification model. Also takes in the YOLO model to extract the layer embeddings. Outputs the trained models, training and validation plots. Also weights of the YOLO model gets updated in this multi task setup.
 
 ### Testing
 ```
