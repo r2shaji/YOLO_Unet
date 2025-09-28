@@ -1,4 +1,4 @@
-A framework for training and testing YOLO with added reconstruction and classification head.
+A framework for training and testing YOLO with added reconstruction and classification head in a single vs multi task setup.
 
 
 ## Usage
