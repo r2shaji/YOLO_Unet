@@ -1,6 +1,5 @@
 A framework for training and testing YOLO with added reconstruction and classification head.
 
- For testing
 
 ## Usage
 ### Training
@@ -15,6 +14,9 @@ Inputs the sharp and blur image folders to train the reconstruction model. Also 
 
 Inputs the sharp image and label folders to train the classification model. Also takes in the YOLO model to extract the layer embeddings. Outputs the trained model, training and validation plots.
 
+#### For both training
+
+Inputs the sharp image, blur image and label folders to train the classification model. Also takes in the YOLO model to extract the layer embeddings. Outputs the trained model, training and validation plots. Also update the weights of the YOLO model trained in this multi task setup.
 
 ### Testing
 ```
@@ -94,6 +96,10 @@ label_names → Mapping of class IDs to class names.
   }
 }
 ```
+
+### Link to the dataset and the YOLO models trained in single task and multi task setup
+
+https://drive.google.com/file/d/1qbpJ51lSAAx0q-qnvCzaY3ubHi8swUzK/view?usp=sharing
 
 Notes
 
