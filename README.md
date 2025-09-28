@@ -1,16 +1,20 @@
 A framework for training and testing YOLO with added reconstruction and classification head.
 
-Usage
-Training
+## Usage
+### Training
+```
 python main.py --mode train --config "path/to/config.json"
+```
 
-Testing
+### Testing
+```
 python main.py --mode test --config "path/to/config.json"
+```
 
-Configuration File
+### Configuration File
 
 The configuration JSON file should contain the following fields:
-
+```
 {
   "sharp_image_folder": "path/to/sharp/images",
   "blur_image_folder": "path/to/blur/images", 
@@ -25,8 +29,9 @@ The configuration JSON file should contain the following fields:
     "12": "c"
   }
 }
+```
 
-Field Descriptions
+### Field Descriptions
 
 sharp_image_folder → Folder containing sharp/original images.
 
@@ -54,7 +59,8 @@ num_epochs → Number of training epochs.
 
 label_names → Mapping of class IDs to class names.
 
-Example
+### Example
+```
 {
   "sharp_image_folder": "./data/sharp",
   "blur_image_folder": "./data/blur",
@@ -69,6 +75,7 @@ Example
     "1": "c"
   }
 }
+```
 
 Notes
 
