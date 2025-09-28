@@ -1,15 +1,34 @@
 A framework for training and testing YOLO with added reconstruction and classification head.
 
+ For testing
+
 ## Usage
 ### Training
 ```
 python main.py --mode train --config "path/to/config.json"
 ```
+#### For reconstruction head training
+
+Inputs the sharp and blur image folders to train the reconstruction model. Also takes in the YOLO model to extract the layer embeddings. Outputs the trained model, training and validation plots.
+
+#### For classification head training
+
+Inputs the sharp image and label folders to train the classification model. Also takes in the YOLO model to extract the layer embeddings. Outputs the trained model, training and validation plots.
+
 
 ### Testing
 ```
 python main.py --mode test --config "path/to/config.json"
 ```
+Inputs the blur image folder. 
+
+#### For reconstruction head testing
+
+Outputs the reconstructed images. 
+
+#### For classification head testing
+
+Outputs the confusion matrix chart and prints the score.
 
 ### Configuration File
 
