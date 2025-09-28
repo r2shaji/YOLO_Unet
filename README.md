@@ -20,15 +20,14 @@ Inputs the sharp image and label folders to train the classification model. Also
 ```
 python main.py --mode test --config "path/to/config.json"
 ```
-Inputs the blur image folder. 
 
 #### For reconstruction head testing
 
-Outputs the reconstructed images. 
+Inputs the blur image folder. Outputs the reconstructed images. 
 
 #### For classification head testing
 
-Outputs the confusion matrix chart and prints the score.
+Inputs the sharp image folder. Outputs the confusion matrix chart and prints the score.
 
 ### Configuration File
 
